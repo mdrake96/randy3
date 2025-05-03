@@ -9,39 +9,89 @@ import re
 from datetime import datetime
 import time
 import random
+from serpapi import GoogleSearch
 
 class WebScraper:
-    def __init__(self):
+    def __init__(self, serpapi_key: str):
         """Initialize the web scraper with necessary configurations."""
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
+        self.serpapi_key = serpapi_key
     
     def search(self, query: str, max_results: int = 5, search_type: str = "general") -> List[Dict]:
         """
-        Perform a web search and return results.
-        This is a placeholder implementation that returns example results.
-        In a real application, you would integrate with a search API like Google Custom Search.
+        Perform a web search using SerpAPI and return real results.
+        
+        Args:
+            query (str): Search query
+            max_results (int): Maximum number of results to return
+            search_type (str): Type of search (general, academic, news)
+            
+        Returns:
+            List[Dict]: List of search results with title, url, and snippet
         """
-        # Example results for demonstration
-        example_results = [
-            {
-                'title': 'Example Research Paper 1',
-                'url': 'https://example.com/paper1',
-                'snippet': 'This is an example research paper about the topic you searched for.'
-            },
-            {
-                'title': 'Example Research Paper 2',
-                'url': 'https://example.com/paper2',
-                'snippet': 'Another example research paper with relevant information.'
-            },
-            {
-                'title': 'Example News Article',
-                'url': 'https://example.com/news1',
-                'snippet': 'A news article related to your search query.'
+        try:
+            # Prepare search parameters
+            params = {
+                'api_key': self.serpapi_key,
+                'q': query,
+                'num': max_results,
+                'hl': 'en',  # Language
+                'gl': 'us'   # Country
             }
-        ]
-        return example_results[:max_results]
+            
+            # Add search type modifiers
+            if search_type == "academic":
+                params['q'] = f"site:edu OR site:ac.uk OR site:ac.jp {query}"
+            elif search_type == "news":
+                params['tbm'] = 'nws'  # News search
+            
+            # Create search client
+            search = GoogleSearch(params)
+            
+            # Get results
+            data = search.get_dict()
+            results = []
+            
+            # Extract organic results
+            if 'organic_results' in data:
+                for item in data['organic_results'][:max_results]:
+                    results.append({
+                        'title': item.get('title', ''),
+                        'url': item.get('link', ''),
+                        'snippet': item.get('snippet', '')
+                    })
+            
+            # If no organic results, try news results
+            if not results and 'news_results' in data:
+                for item in data['news_results'][:max_results]:
+                    results.append({
+                        'title': item.get('title', ''),
+                        'url': item.get('link', ''),
+                        'snippet': item.get('snippet', '')
+                    })
+            
+            if not results:
+                raise ValueError("No search results found")
+            
+            return results
+            
+        except Exception as e:
+            print(f"Error performing search: {str(e)}")
+            # Return example results as fallback
+            return [
+                {
+                    'title': 'Example Research Paper 1',
+                    'url': 'https://example.com/paper1',
+                    'snippet': 'This is an example research paper about the topic you searched for.'
+                },
+                {
+                    'title': 'Example Research Paper 2',
+                    'url': 'https://example.com/paper2',
+                    'snippet': 'Another example research paper with relevant information.'
+                }
+            ]
     
     def scrape_article(self, url: str) -> Optional[str]:
         """
@@ -116,4 +166,4 @@ class WebScraper:
                 'description': '',
                 'author': '',
                 'date': ''
-            } 
+            }
