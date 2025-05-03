@@ -1,15 +1,60 @@
-from typing import Dict, List, Optional
+"""
+Citation management utilities for research assistant.
+"""
+
+from typing import Dict, List, Any
 from datetime import datetime
 import re
 
 class CitationManager:
     def __init__(self):
         """Initialize the citation manager."""
+        self.citations = []
         self.citation_styles = {
             'apa': self._format_apa,
             'mla': self._format_mla,
             'chicago': self._format_chicago
         }
+    
+    def add_citation(self, source: Dict[str, Any]) -> str:
+        """
+        Add a citation for a source.
+        
+        Args:
+            source (Dict): Source information
+            
+        Returns:
+            str: Formatted citation
+        """
+        citation = self._format_citation(source)
+        self.citations.append(citation)
+        return citation
+    
+    def get_citations(self) -> List[str]:
+        """
+        Get all stored citations.
+        
+        Returns:
+            List[str]: List of citations
+        """
+        return self.citations
+    
+    def _format_citation(self, source: Dict[str, Any]) -> str:
+        """
+        Format a citation in APA style.
+        
+        Args:
+            source (Dict): Source information
+            
+        Returns:
+            str: Formatted citation
+        """
+        title = source.get('title', 'Untitled')
+        author = source.get('author', 'Unknown Author')
+        date = source.get('date', datetime.now().strftime('%Y-%m-%d'))
+        url = source.get('url', '')
+        
+        return f"{author}. ({date}). {title}. Retrieved from {url}"
     
     def generate_citation(self, source: Dict[str, str], style: str = 'apa') -> str:
         """

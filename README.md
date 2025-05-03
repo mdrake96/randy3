@@ -1,101 +1,58 @@
-# Research Assistant Agent
+# Research Assistant
 
-An intelligent agent that helps users research topics, gather information, and present findings in an organized format.
+A Streamlit-based research assistant application that helps with web search and PDF analysis.
 
 ## Features
 
-- Information retrieval and summarization from multiple sources
-- Evaluation of source credibility and relevance
-- Organization of findings into structured reports
-- Citation management and reference tracking
-- Web interface using Streamlit
+- Web search capabilities with customizable search types
+- PDF document analysis and summarization
+- Content analysis using OpenAI's API
+- Modern and user-friendly interface
 
-## Installation
+## Setup
 
-1. Clone this repository
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Create a `.env` file and add your API keys:
-   ```
-   OPENAI_API_KEY=your_api_key_here
-   ```
+1. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Create a `.env` file in the project root with your OpenAI API key:
+```
+OPENAI_API_KEY=your_api_key_here
+```
 
 ## Usage
 
-### Command Line Usage
-
-```python
-from research_agent import ResearchAgent
-
-# Initialize the agent
-agent = ResearchAgent()
-
-# Start a research session
-results = agent.research_topic(
-    topic="Your research topic",
-    max_sources=5,
-    include_citations=True
-)
-
-# Get a structured report
-report = agent.generate_report(results)
-```
-
-### Web Interface (Streamlit)
-
-To run the web interface:
-
+1. Start the application:
 ```bash
 streamlit run app.py
 ```
 
-The web interface provides:
-- Topic input field
-- Settings for number of sources and citation style
-- Real-time research progress
-- Interactive display of results
-- Downloadable research reports
+2. Open your browser and navigate to the URL shown in the terminal (usually http://localhost:8501)
+
+3. Enter your OpenAI API key in the sidebar if not already set in the `.env` file
+
+4. Use the application:
+   - Web Search tab: Enter a search query and customize search parameters
+   - PDF Analysis tab: Upload and analyze PDF documents
 
 ## Project Structure
 
-- `research_agent.py`: Main agent implementation
-- `app.py`: Streamlit web interface
-- `utils/`: Helper functions and utilities
-  - `web_scraper.py`: Web scraping functionality
-  - `summarizer.py`: Text summarization utilities
-  - `citation_manager.py`: Citation formatting and management
+- `app.py`: Main Streamlit application
+- `utils/`: Utility modules
+  - `web_scraper.py`: Web search and content scraping
+  - `summarizer.py`: Text summarization using OpenAI
+  - `pdf_processor.py`: PDF document processing
+  - `__init__.py`: Package initialization
 
-## Deployment
+## Requirements
 
-### Local Deployment
-
-1. Install all dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Run the Streamlit app:
-   ```bash
-   streamlit run app.py
-   ```
-
-### Cloud Deployment
-
-You can deploy the app to Streamlit Cloud:
-
-1. Create a GitHub repository with your code
-2. Go to [Streamlit Cloud](https://streamlit.io/cloud)
-3. Connect your GitHub repository
-4. Set the following environment variables in the Streamlit Cloud settings:
-   - `OPENAI_API_KEY`: Your OpenAI API key
-
-## License
-
-MIT License 
+- Python 3.8+
+- OpenAI API key
+- Internet connection for web search functionality 

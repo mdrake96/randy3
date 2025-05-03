@@ -1,5 +1,9 @@
+"""
+PDF processing utilities for research assistant.
+"""
+
 from PyPDF2 import PdfReader
-from typing import Dict, List, Optional
+from typing import Dict, List, Any
 import io
 import re
 
@@ -8,46 +12,58 @@ class PDFProcessor:
         """Initialize the PDF processor."""
         pass
     
-    def process_pdf(self, file: bytes) -> Dict[str, any]:
+    def process_pdf(self, file) -> Dict[str, Any]:
         """
-        Process a PDF file and extract its contents.
+        Process a PDF file and extract its content.
         
         Args:
-            file (bytes): PDF file bytes
+            file: File object or bytes of the PDF
             
         Returns:
-            Dict containing PDF information
+            Dict containing metadata, sections, and full text
         """
         try:
-            # Create a PDF reader object
-            pdf_reader = PdfReader(io.BytesIO(file))
+            # Read PDF file
+            pdf_reader = PdfReader(file)
             
             # Extract metadata
-            metadata = pdf_reader.metadata
+            metadata = {
+                'title': pdf_reader.metadata.title or 'Untitled',
+                'author': pdf_reader.metadata.author or 'Unknown',
+                'page_count': len(pdf_reader.pages)
+            }
             
             # Extract text from all pages
-            text = ""
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
+            full_text = ""
+            sections = []
             
-            # Clean text
-            text = self._clean_text(text)
-            
-            # Extract basic information
-            title = metadata.get('/Title', 'Untitled Document')
-            author = metadata.get('/Author', 'Unknown Author')
-            num_pages = len(pdf_reader.pages)
+            for page_num, page in enumerate(pdf_reader.pages, 1):
+                page_text = page.extract_text()
+                full_text += page_text + "\n"
+                
+                # Create a section for each page
+                sections.append({
+                    'title': f"Page {page_num}",
+                    'content': page_text
+                })
             
             return {
-                'title': title,
-                'author': author,
-                'num_pages': num_pages,
-                'text': text,
-                'metadata': metadata
+                'metadata': metadata,
+                'sections': sections,
+                'full_text': full_text.strip()
             }
+            
         except Exception as e:
             print(f"Error processing PDF: {str(e)}")
-            return None
+            return {
+                'metadata': {
+                    'title': 'Error',
+                    'author': 'Error',
+                    'page_count': 0
+                },
+                'sections': [],
+                'full_text': ''
+            }
     
     def extract_sections(self, text: str) -> List[Dict[str, str]]:
         """
@@ -116,4 +132,4 @@ class PDFProcessor:
         # Remove special characters
         text = re.sub(r'[^\w\s.,;:!?()\-\n]', '', text)
         
-        return text.strip() 
+        return text.strip()

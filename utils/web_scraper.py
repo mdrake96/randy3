@@ -1,134 +1,119 @@
+"""
+Web scraping utilities for research assistant.
+"""
+
 import requests
 from bs4 import BeautifulSoup
-from typing import Optional, Dict
+from typing import List, Dict, Any, Optional
 import re
-from urllib.parse import urlparse
+from datetime import datetime
+import time
+import random
 
 class WebScraper:
     def __init__(self):
-        """Initialize the web scraper with default settings."""
+        """Initialize the web scraper with necessary configurations."""
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
     
-    def scrape_article(self, url: str) -> Optional[Dict[str, str]]:
+    def search(self, query: str, max_results: int = 5, search_type: str = "general") -> List[Dict]:
         """
-        Scrape an article from a given URL.
-        
-        Args:
-            url (str): The URL to scrape
-            
-        Returns:
-            Optional[Dict] containing article information
+        Perform a web search and return results.
+        This is a placeholder implementation that returns example results.
+        In a real application, you would integrate with a search API like Google Custom Search.
+        """
+        # Example results for demonstration
+        example_results = [
+            {
+                'title': 'Example Research Paper 1',
+                'url': 'https://example.com/paper1',
+                'snippet': 'This is an example research paper about the topic you searched for.'
+            },
+            {
+                'title': 'Example Research Paper 2',
+                'url': 'https://example.com/paper2',
+                'snippet': 'Another example research paper with relevant information.'
+            },
+            {
+                'title': 'Example News Article',
+                'url': 'https://example.com/news1',
+                'snippet': 'A news article related to your search query.'
+            }
+        ]
+        return example_results[:max_results]
+    
+    def scrape_article(self, url: str) -> Optional[str]:
+        """
+        Scrape the main content from a web article.
         """
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()
+            
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Extract title
-            title = self._extract_title(soup)
+            # Remove script and style elements
+            for script in soup(["script", "style"]):
+                script.decompose()
             
-            # Extract main content
-            content = self._extract_content(soup)
+            # Get text content
+            text = soup.get_text()
             
-            # Extract metadata
-            metadata = self._extract_metadata(soup)
+            # Clean up text
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = ' '.join(chunk for chunk in chunks if chunk)
             
-            return {
-                'title': title,
-                'content': content,
-                'url': url,
-                'metadata': metadata
-            }
+            return text
         except Exception as e:
-            print(f"Error scraping {url}: {str(e)}")
+            print(f"Error scraping article: {str(e)}")
             return None
     
-    def _extract_title(self, soup: BeautifulSoup) -> str:
-        """Extract the title of the article."""
-        title = soup.find('title')
-        if title:
-            return title.text.strip()
+    def extract_metadata(self, url: str) -> Dict[str, str]:
+        """
+        Extract metadata from a webpage.
         
-        # Try alternative title tags
-        for tag in ['h1', 'h2']:
-            title = soup.find(tag)
-            if title:
-                return title.text.strip()
-        
-        return "Untitled"
-    
-    def _extract_content(self, soup: BeautifulSoup) -> str:
-        """Extract the main content of the article."""
-        # Remove unwanted elements
-        for element in soup(['script', 'style', 'nav', 'footer', 'header']):
-            element.decompose()
-        
-        # Common content containers
-        content_containers = [
-            'article',
-            'main',
-            '.article-content',
-            '.post-content',
-            '#content',
-            '.content'
-        ]
-        
-        for selector in content_containers:
-            content = soup.select_one(selector)
-            if content:
-                return self._clean_text(content.get_text())
-        
-        # Fallback: get all paragraphs
-        paragraphs = soup.find_all('p')
-        if paragraphs:
-            return self._clean_text('\n'.join(p.get_text() for p in paragraphs))
-        
-        return ""
-    
-    def _extract_metadata(self, soup: BeautifulSoup) -> Dict[str, str]:
-        """Extract metadata from the page."""
-        metadata = {}
-        
-        # Extract meta tags
-        for meta in soup.find_all('meta'):
-            name = meta.get('name', meta.get('property', ''))
-            content = meta.get('content', '')
-            if name and content:
-                metadata[name] = content
-        
-        # Extract publication date
-        date = self._extract_date(soup)
-        if date:
-            metadata['publication_date'] = date
-        
-        return metadata
-    
-    def _extract_date(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract the publication date from the page."""
-        # Common date selectors
-        date_selectors = [
-            'time',
-            '.date',
-            '.published',
-            '.post-date',
-            '[datetime]'
-        ]
-        
-        for selector in date_selectors:
-            date_element = soup.select_one(selector)
-            if date_element:
-                date = date_element.get('datetime') or date_element.text
-                if date:
-                    return date.strip()
-        
-        return None
-    
-    def _clean_text(self, text: str) -> str:
-        """Clean extracted text."""
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text)
-        # Remove leading/trailing whitespace
-        text = text.strip()
-        return text 
+        Args:
+            url (str): URL of the webpage
+            
+        Returns:
+            Dict[str, str]: Extracted metadata
+        """
+        try:
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            metadata = {
+                'title': soup.title.string if soup.title else '',
+                'description': '',
+                'author': '',
+                'date': ''
+            }
+            
+            # Extract meta description
+            meta_desc = soup.find('meta', attrs={'name': 'description'})
+            if meta_desc:
+                metadata['description'] = meta_desc.get('content', '')
+            
+            # Extract author
+            meta_author = soup.find('meta', attrs={'name': 'author'})
+            if meta_author:
+                metadata['author'] = meta_author.get('content', '')
+            
+            # Extract date
+            meta_date = soup.find('meta', attrs={'property': 'article:published_time'})
+            if meta_date:
+                metadata['date'] = meta_date.get('content', '')
+            
+            return metadata
+        except Exception as e:
+            print(f"Error extracting metadata from {url}: {str(e)}")
+            return {
+                'title': '',
+                'description': '',
+                'author': '',
+                'date': ''
+            } 

@@ -1,37 +1,26 @@
 import streamlit as st
 import os
-from research_agent import ResearchAgent
 from utils.web_scraper import WebScraper
-from utils.summarizer import Summarizer
-from utils.citation_manager import CitationManager
+from utils.summarizer import summarize_text
 from utils.pdf_processor import PDFProcessor
-from agent_architecture import AgentSystem
-from utils.safety_system import SafetySystem
-import json
 import time
+from dotenv import load_dotenv
 
-# Initialize the agent system
-agent_system = AgentSystem()
+# Load environment variables
+load_dotenv()
+
+# Get OpenAI API key from environment variable
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
 # Initialize session state variables
-if 'research_results' not in st.session_state:
-    st.session_state.research_results = None
-if 'pdf_results' not in st.session_state:
-    st.session_state.pdf_results = None
-if 'search_results' not in st.session_state:
-    st.session_state.search_results = None
-if 'conversation_history' not in st.session_state:
-    st.session_state.conversation_history = []
-if 'last_action' not in st.session_state:
-    st.session_state.last_action = None
-if 'last_action_params' not in st.session_state:
-    st.session_state.last_action_params = None
-if 'safety_metrics' not in st.session_state:
-    st.session_state.safety_metrics = agent_system.safety_system.get_safety_metrics()
-if 'boundaries' not in st.session_state:
-    st.session_state.boundaries = agent_system.safety_system.get_boundaries()
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = openai_api_key
+if 'web_scraper' not in st.session_state:
+    st.session_state.web_scraper = WebScraper()
+if 'pdf_processor' not in st.session_state:
+    st.session_state.pdf_processor = PDFProcessor()
 
-# Custom CSS for better styling
+# Custom CSS for styling
 st.markdown("""
     <style>
     .main {
@@ -52,358 +41,132 @@ st.markdown("""
         border-radius: 0.5rem;
         background-color: #f0f2f6;
     }
-    .feedback-section {
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 0.5rem;
-        background-color: #f8f9fa;
-    }
-    .safety-section {
-        background-color: #fff3cd;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .error-message {
-        color: #dc3545;
-        padding: 10px;
-        border-radius: 5px;
-        margin: 10px 0;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("Research Assistant Agent")
+# API Key input in sidebar
+st.sidebar.header("Configuration")
+api_key_input = st.sidebar.text_input("Enter your OpenAI API key:", type="password", value=st.session_state.api_key if st.session_state.api_key else "")
+if api_key_input:
+    st.session_state.api_key = api_key_input
+
+# Main content
+if not st.session_state.api_key:
+    st.warning("Please enter your OpenAI API key in the sidebar to continue.")
+    st.stop()
+
+st.title("Research Assistant")
 st.markdown("""
     This research assistant helps you with:
-    - Gathering information on research topics
-    - Analyzing PDF documents
-    - Managing citations
-    - Organizing research findings
     - Web search capabilities
-    - Learning from your feedback
+    - PDF document analysis
+    - Content summarization
+    - Information analysis
 """)
 
 # Create tabs for different functionalities
-tab1, tab2, tab3, tab4 = st.tabs(["Research Topic", "PDF Analysis", "Web Search", "Agent Feedback"])
+tab1, tab2 = st.tabs(["Web Search", "PDF Analysis"])
 
 with tab1:
-    st.header("Research a Topic")
+    st.header("Web Search")
+    search_query = st.text_input("Enter your search query:")
+    max_results = st.slider("Maximum number of results:", 1, 20, 5)
+    search_type = st.selectbox("Search type:", ["general", "academic", "news"])
     
-    # Input section with agent processing
-    topic = st.text_input("Enter your research topic:")
-    scope = st.selectbox("Select research scope:", ["general", "detailed"])
-    max_results = st.slider("Maximum number of sources:", 1, st.session_state.boundaries['max_research_sources'], 5)
-    
-    if topic:
-        # Process input through agent system
-        input_data = {
-            'type': 'research_topic',
-            'data': {
-                'topic': topic,
-                'scope': scope,
-                'max_results': max_results
-            }
-        }
-        
-        try:
-            # Get agent response
-            agent_response = agent_system.process(input_data)
-            
-            if st.button("Research"):
-                start_time = time.time()
-                with st.spinner("Researching..."):
-                    # Initialize research agent with parameters from agent system
-                    agent = ResearchAgent()
-                    results = agent.research_topic(
-                        topic,
-                        scope=scope,
-                        max_results=max_results
-                    )
-                    
-                    # Store results and action info
-                    agent_system.memory.store('research_results', results)
-                    st.session_state.research_results = results
-                    st.session_state.last_action = 'research'
-                    st.session_state.last_action_params = {
-                        'topic': topic,
-                        'scope': scope,
-                        'max_results': max_results
-                    }
-                    
-                    # Display results
-                    if results:
-                        st.success("Research completed!")
-                        st.subheader("Research Results")
-                        
-                        for result in results:
-                            with st.expander(f"Source: {result['source']}"):
-                                st.markdown(f"**Summary:** {result['summary']}")
-                                st.markdown(f"**Key Points:**")
-                                for point in result['key_points']:
-                                    st.markdown(f"- {point}")
-                                st.markdown(f"**Citation:** {result['citation']}")
-                                
-                                # Add to conversation history
-                                agent_system.memory.add_to_history(
-                                    'system',
-                                    f"Processed research result from {result['source']}"
-                                )
-                    else:
-                        st.warning("No results found. Try adjusting your search terms.")
-                        
-                    # Show performance metrics
-                    st.subheader("Agent Performance")
-                    metrics = agent_response['metadata']['performance_metrics']
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Research Accuracy", f"{metrics['research_accuracy']:.2%}")
-                    with col2:
-                        st.metric("Response Time", f"{metrics['response_time']:.2f}s")
-                        
-        except Exception as e:
-            st.error(f"Error processing request: {str(e)}")
-
-with tab2:
-    st.header("Analyze PDF Document")
-    
-    uploaded_file = st.file_uploader("Upload a PDF file", type=['pdf'])
-    
-    if uploaded_file:
-        # Check file size
-        file_size = uploaded_file.size
-        if file_size > st.session_state.boundaries['max_file_size_mb'] * 1024 * 1024:
-            st.error(f"File size exceeds maximum limit of {st.session_state.boundaries['max_file_size_mb']}MB")
+    if st.button("Search"):
+        if not st.session_state.api_key:
+            st.error("Please enter your OpenAI API key in the sidebar first.")
         else:
-            # Process input through agent system
-            input_data = {
-                'type': 'pdf_analysis',
-                'data': {
-                    'file': uploaded_file,
-                    'file_size': file_size
-                }
-            }
+            start_time = time.time()
             
             try:
-                # Get agent response
-                agent_response = agent_system.process(input_data)
+                # Perform web search
+                search_results = st.session_state.web_scraper.search(
+                    query=search_query,
+                    max_results=max_results,
+                    search_type=search_type
+                )
                 
-                if st.button("Analyze PDF"):
-                    start_time = time.time()
-                    with st.spinner("Analyzing PDF..."):
-                        # Save uploaded file
-                        file_path = os.path.join("temp", uploaded_file.name)
-                        os.makedirs("temp", exist_ok=True)
+                # Display search results
+                st.subheader("Search Results")
+                for i, result in enumerate(search_results, 1):
+                    with st.expander(f"Result {i}: {result['title']}"):
+                        st.write(f"**URL:** {result['url']}")
+                        st.write(f"**Snippet:** {result['snippet']}")
                         
-                        with open(file_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
-                        
-                        # Process PDF using agent parameters
-                        pdf_processor = PDFProcessor()
-                        pdf_data = pdf_processor.process_pdf(file_path)
-                        
-                        # Store results and action info
-                        agent_system.memory.store('pdf_results', pdf_data)
-                        st.session_state.pdf_results = pdf_data
-                        st.session_state.last_action = 'pdf_analysis'
-                        st.session_state.last_action_params = {
-                            'file_name': uploaded_file.name,
-                            'file_size': file_size
-                        }
-                        
-                        # Display results
-                        st.success("PDF Analysis Completed!")
-                        
-                        # Show document information
-                        st.subheader("Document Information")
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Title", pdf_data['metadata'].get('title', 'Unknown'))
-                        with col2:
-                            st.metric("Author", pdf_data['metadata'].get('author', 'Unknown'))
-                        with col3:
-                            st.metric("Pages", pdf_data['metadata'].get('num_pages', 'Unknown'))
-                        
-                        # Show sections
-                        st.subheader("Document Sections")
-                        for section in pdf_data['sections']:
-                            with st.expander(f"Section: {section['title']}"):
-                                st.write(section['content'])
-                        
-                        # Generate and show summary
-                        st.subheader("Document Summary")
-                        summarizer = Summarizer()
-                        summary = summarizer.summarize_text(pdf_data['full_text'])
-                        st.write(summary)
-                        
-                        # Show performance metrics
-                        st.subheader("Agent Performance")
-                        metrics = agent_response['metadata']['performance_metrics']
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Analysis Quality", f"{metrics['pdf_analysis_quality']:.2%}")
-                        with col2:
-                            st.metric("Response Time", f"{metrics['response_time']:.2f}s")
-                        
-                        # Add to conversation history
-                        agent_system.memory.add_to_history(
-                            'system',
-                            f"Processed PDF document: {uploaded_file.name}"
-                        )
-                        
-                        # Clean up
-                        os.remove(file_path)
-                        
+                        # Add option to analyze the content
+                        if st.button(f"Analyze Content {i}"):
+                            content = st.session_state.web_scraper.scrape_article(result['url'])
+                            if content:
+                                # Generate summary
+                                summary = summarize_text(content, api_key=st.session_state.api_key)
+                                st.write("**Summary:**")
+                                st.write(summary)
+                
+                # Display processing time
+                processing_time = time.time() - start_time
+                st.metric("Processing Time", f"{processing_time:.2f} seconds")
+                
             except Exception as e:
-                st.error(f"Error processing PDF: {str(e)}")
+                st.error(f"An error occurred: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
 
-with tab3:
-    st.header("Web Search")
+with tab2:
+    st.header("PDF Analysis")
+    uploaded_file = st.file_uploader("Upload a PDF file", type=['pdf'])
     
-    # Search input
-    search_query = st.text_input("Enter your search query:")
-    
-    if search_query:
-        # Process input through agent system
-        input_data = {
-            'type': 'web_search',
-            'data': {
-                'query': search_query
-            }
-        }
-        
-        try:
-            # Get agent response
-            agent_response = agent_system.process(input_data)
-            
-            if st.button("Search"):
+    if uploaded_file is not None:
+        if st.button("Analyze PDF"):
+            if not st.session_state.api_key:
+                st.error("Please enter your OpenAI API key in the sidebar first.")
+            else:
                 start_time = time.time()
-                with st.spinner("Searching..."):
-                    # Display search results
-                    if agent_response['data'].get('search_results'):
-                        st.success("Search completed!")
-                        st.subheader("Search Results")
-                        
-                        for result in agent_response['data']['search_results']:
-                            with st.container():
-                                st.markdown(f"""
-                                    <div class="search-result">
-                                        <h3>{result['title']}</h3>
-                                        <p><strong>URL:</strong> <a href="{result['url']}" target="_blank">{result['url']}</a></p>
-                                        <p><strong>Summary:</strong> {result['summary']}</p>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                                
-                                # Add to conversation history
-                                agent_system.memory.add_to_history(
-                                    'system',
-                                    f"Processed web search result: {result['title']}"
-                                )
-                                
-                        # Store action info
-                        st.session_state.last_action = 'web_search'
-                        st.session_state.last_action_params = agent_response['parameters']
-                        
-                        # Show performance metrics
-                        st.subheader("Agent Performance")
-                        metrics = agent_response['metadata']['performance_metrics']
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Search Relevance", f"{metrics['search_relevance']:.2%}")
-                        with col2:
-                            st.metric("Response Time", f"{metrics['response_time']:.2f}s")
-                    else:
-                        st.warning("No results found. Try adjusting your search terms.")
-                        
-        except Exception as e:
-            st.error(f"Error performing search: {str(e)}")
-            
-    # Show search history
-    st.subheader("Recent Searches")
-    search_history = agent_system.memory.get_search_history()
-    for entry in search_history[-3:]:  # Show last 3 searches
-        with st.expander(f"Search: {entry['query']}"):
-            st.write(f"Time: {entry['timestamp']}")
-            st.write(f"Number of results: {len(entry['results'])}")
-
-with tab4:
-    st.header("Agent Feedback")
-    
-    if st.session_state.last_action:
-        st.subheader("Provide Feedback")
-        st.write(f"Last action: {st.session_state.last_action}")
-        
-        # Feedback form
-        with st.form("feedback_form"):
-            st.write("How would you rate the agent's performance?")
-            rating = st.slider("Rating (0-1)", 0.0, 1.0, 0.5, 0.1)
-            comments = st.text_area("Additional comments (optional)")
-            
-            if st.form_submit_button("Submit Feedback"):
-                # Process feedback
-                feedback_data = {
-                    'type': 'feedback',
-                    'data': {
-                        'action_type': st.session_state.last_action,
-                        'action_params': st.session_state.last_action_params,
-                        'reward': rating,
-                        'comments': comments,
-                        'response_time': time.time() - start_time
-                    }
-                }
                 
                 try:
-                    # Process feedback through agent system
-                    agent_response = agent_system.process(feedback_data)
-                    st.success("Thank you for your feedback! The agent will learn from it.")
+                    # Process PDF
+                    st.write("Processing PDF...")
+                    pdf_data = st.session_state.pdf_processor.process_pdf(uploaded_file)
                     
-                    # Show updated performance metrics
-                    st.subheader("Updated Performance Metrics")
-                    metrics = agent_response['metadata']['performance_metrics']
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Research Accuracy", f"{metrics['research_accuracy']:.2%}")
-                    with col2:
-                        st.metric("PDF Analysis Quality", f"{metrics['pdf_analysis_quality']:.2%}")
-                    with col3:
-                        st.metric("Search Relevance", f"{metrics['search_relevance']:.2%}")
-                        
+                    if not pdf_data:
+                        st.error("Failed to process PDF. The processor returned None.")
+                        st.stop()
+                    
+                    # Display document information
+                    st.subheader("Document Information")
+                    try:
+                        st.write(f"Title: {pdf_data['metadata']['title']}")
+                        st.write(f"Author: {pdf_data['metadata']['author']}")
+                        st.write(f"Page Count: {pdf_data['metadata']['page_count']}")
+                    except Exception as e:
+                        st.error(f"Error displaying document information: {str(e)}")
+                        st.write("PDF Data structure:", pdf_data)
+                    
+                    # Display sections
+                    st.subheader("Document Sections")
+                    try:
+                        for section in pdf_data['sections']:
+                            with st.expander(section['title']):
+                                st.write(section['content'])
+                    except Exception as e:
+                        st.error(f"Error displaying sections: {str(e)}")
+                    
+                    # Display summary
+                    st.subheader("Document Summary")
+                    try:
+                        if pdf_data['full_text']:
+                            summary = summarize_text(pdf_data['full_text'], api_key=st.session_state.api_key)
+                            st.write(summary)
+                        else:
+                            st.warning("No text content found in the PDF.")
+                    except Exception as e:
+                        st.error(f"Error generating summary: {str(e)}")
+                    
+                    # Display processing time
+                    processing_time = time.time() - start_time
+                    st.metric("Processing Time", f"{processing_time:.2f} seconds")
+                    
                 except Exception as e:
-                    st.error(f"Error processing feedback: {str(e)}")
-    else:
-        st.info("Complete an action (research, PDF analysis, or web search) to provide feedback.")
-
-# Add a section to view agent memory and processing
-with st.sidebar:
-    st.header("Agent System Info")
-    
-    # Show memory contents
-    if st.button("View Agent Memory"):
-        memory_contents = agent_system.memory.memory_store
-        st.json(memory_contents)
-    
-    # Show processing history
-    st.subheader("Processing History")
-    history = agent_system.memory.get_history()
-    for entry in history[-5:]:  # Show last 5 entries
-        st.text(f"{entry['role']}: {entry['content'][:100]}...")
-        
-    # Show learning rates
-    st.subheader("Learning Rates")
-    learning_rates = agent_system.feedback_system.get_learning_rates()
-    for action_type, rate in learning_rates.items():
-        st.metric(f"{action_type.title()} Learning Rate", f"{rate:.3f}")
-
-# Display safety information
-st.sidebar.markdown("---")
-st.sidebar.header("Safety Information")
-st.sidebar.subheader("Operational Boundaries")
-for boundary, value in st.session_state.boundaries.items():
-    st.sidebar.metric(boundary.replace('_', ' ').title(), str(value))
-
-st.sidebar.subheader("Restricted Content")
-restricted_patterns = agent_system.safety_system.get_restricted_patterns()
-for category, patterns in restricted_patterns.items():
-    with st.sidebar.expander(category.replace('_', ' ').title()):
-        for pattern in patterns:
-            st.text(pattern) 
+                    st.error(f"An error occurred while processing the PDF: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc()) 

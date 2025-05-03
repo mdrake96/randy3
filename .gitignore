@@ -22,8 +22,8 @@ wheels/
 
 # Virtual Environment
 venv/
+venv_new/
 ENV/
-env/
 
 # Environment variables
 .env
@@ -34,12 +34,12 @@ env/
 *.swp
 *.swo
 
+# Streamlit
+.streamlit/
+
 # OS
 .DS_Store
 Thumbs.db
-
-# Streamlit
-.streamlit/
 
 # Logs
 *.log 
